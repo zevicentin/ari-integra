@@ -3,3 +3,4 @@
 - [x] Place provided ARI and institutional logos; verify desktop and mobile behavior.
 - [x] Remove the strategy-plan title field and add structured linked activities with description, status, and dates.
 - [x] Add account type selection and enforce agent-owned access versus coordination-wide read-only access.
+- [x] Add administrator approval for new accounts and block pending or rejected accounts from workspace data.

@@ -29,6 +29,27 @@
       "when": 1790884244772,
       "tag": "0003_enforce_coordination_read_only",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790887422502,
+      "tag": "0004_add_account_approval_workflow",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790887552319,
+      "tag": "0005_gate_evidence_storage_by_account_approval",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790887614867,
+      "tag": "0006_remove_anonymous_function_execution",
+      "breakpoints": true
     }
   ]
 }

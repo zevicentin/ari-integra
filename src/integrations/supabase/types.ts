@@ -216,28 +216,34 @@ export type Database = {
       }
       profiles: {
         Row: {
+          approval_status: string
           created_at: string
           full_name: string
           governance: string | null
           id: string
           phone: string | null
           region: string | null
+          requested_role: Database["public"]["Enums"]["app_role"] | null
         }
         Insert: {
+          approval_status?: string
           created_at?: string
           full_name?: string
           governance?: string | null
           id: string
           phone?: string | null
           region?: string | null
+          requested_role?: Database["public"]["Enums"]["app_role"] | null
         }
         Update: {
+          approval_status?: string
           created_at?: string
           full_name?: string
           governance?: string | null
           id?: string
           phone?: string | null
           region?: string | null
+          requested_role?: Database["public"]["Enums"]["app_role"] | null
         }
         Relationships: []
       }
@@ -278,6 +284,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_account_approved: { Args: { _user_id?: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "coordinator" | "agent" | "viewer"
