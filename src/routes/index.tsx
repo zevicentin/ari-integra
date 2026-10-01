@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { Button } from "@/components/ui/button";
 import { Activity, CalendarDays, ChartNoAxesCombined, Check, ChevronLeft, ChevronRight, ClipboardList, Download, LayoutDashboard, LogOut, Menu, Plus, Search, Settings2, Trash2, Users, X, Building2, Paperclip, Pencil, Target } from "lucide-react";
-import ari from "@/assets/logo_ari.png.asset.json";
+import ari from "@/assets/logo_ari-2.png.asset.json";
 import uel from "@/assets/UEL-horizontal-abreviada-cor.png.asset.json";
 import araucaria from "@/assets/logo_araucaria.png.asset.json";
 import sebrae from "@/assets/logo_sebrae.png.asset.json";
