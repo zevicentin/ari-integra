@@ -8,6 +8,13 @@
       "when": 1790878612406,
       "tag": "0000_ari_core_records",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790878631985,
+      "tag": "0001_ari_evidence_access",
+      "breakpoints": true
     }
   ]
 }
