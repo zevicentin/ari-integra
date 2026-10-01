@@ -264,6 +264,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      coordination_participants: {
+        Args: never
+        Returns: {
+          full_name: string
+          user_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

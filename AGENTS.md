@@ -13,3 +13,4 @@
 - Use one authenticated workspace at the home route with section navigation, so field agents and coordinators share the same responsive application.
 - Store activity evidence in a private user-folder bucket, so uploaded images are not publicly exposed.
 - Keep strategy-plan linked activities nested in each outcome's JSON data and normalize legacy text on edit, so existing plans remain editable without a separate table.
+- Resolve coordination-meeting participant choices through an authenticated database function that excludes privileged and viewer roles, so users do not need direct access to other accounts' role rows.
