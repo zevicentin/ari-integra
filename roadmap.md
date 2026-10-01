@@ -1,0 +1,3 @@
+- [x] Interpret the attached project and provision persistent records, access, and private evidence storage.
+- [ ] Build authenticated ARI workspace for activities, calendar, organizations, governance actors, agents, and reports.
+- [ ] Place provided ARI and institutional logos; verify desktop and mobile behavior.
