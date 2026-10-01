@@ -2,3 +2,4 @@
 - [x] Build authenticated ARI workspace for activities, calendar, organizations, governance actors, agents, and reports.
 - [x] Place provided ARI and institutional logos; verify desktop and mobile behavior.
 - [x] Remove the strategy-plan title field and add structured linked activities with description, status, and dates.
+- [x] Add account type selection and enforce agent-owned access versus coordination-wide read-only access.
