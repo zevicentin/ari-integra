@@ -29,6 +29,13 @@
       "when": 1790884244772,
       "tag": "0003_enforce_coordination_read_only",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790887422502,
+      "tag": "0004_add_account_approval_workflow",
+      "breakpoints": true
     }
   ]
 }
