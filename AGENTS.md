@@ -12,3 +12,4 @@
 - Keep ARI records in Lovable Cloud with owner-scoped row policies and a separate roles table, so accounts cannot elevate privileges or see another agent's private records.
 - Use one authenticated workspace at the home route with section navigation, so field agents and coordinators share the same responsive application.
 - Store activity evidence in a private user-folder bucket, so uploaded images are not publicly exposed.
+- Keep strategy-plan linked activities nested in each outcome's JSON data and normalize legacy text on edit, so existing plans remain editable without a separate table.

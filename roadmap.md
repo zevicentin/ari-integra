@@ -1,4 +1,4 @@
 - [x] Interpret the attached project and provision persistent records, access, and private evidence storage.
 - [x] Build authenticated ARI workspace for activities, calendar, organizations, governance actors, agents, and reports.
 - [x] Place provided ARI and institutional logos; verify desktop and mobile behavior.
-- [ ] Remove the strategy-plan title field and add structured linked activities with description, status, and dates.
+- [x] Remove the strategy-plan title field and add structured linked activities with description, status, and dates.
