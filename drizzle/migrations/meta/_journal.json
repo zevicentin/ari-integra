@@ -15,6 +15,13 @@
       "when": 1790878631985,
       "tag": "0001_ari_evidence_access",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790883213412,
+      "tag": "0002_list_eligible_coordination_participants",
+      "breakpoints": true
     }
   ]
 }
