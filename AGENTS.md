@@ -15,3 +15,4 @@
 - Keep strategy-plan linked activities nested in each outcome's JSON data and normalize legacy text on edit, so existing plans remain editable without a separate table.
 - Resolve coordination-meeting participant choices through an authenticated database function that excludes privileged and viewer roles, so users do not need direct access to other accounts' role rows.
 - Create email accounts through a validated server function that assigns roles separately; coordinators have database-enforced read-only access to all records.
+- Keep requested account roles separate from granted roles and grant access only after an administrator approves the account.
