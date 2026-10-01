@@ -14,16 +14,266 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      activities: {
+        Row: {
+          achieved_results: string | null
+          agenda: string | null
+          axis: string | null
+          created_at: string
+          description: string | null
+          end_date: string | null
+          evidence: Json
+          expected_results: string | null
+          id: string
+          kind: string
+          objectives: string | null
+          organization_id: string | null
+          outcomes: Json
+          owner_id: string
+          participants: string | null
+          problem: string | null
+          problem_description: string | null
+          referrals: string | null
+          solution: string | null
+          solution_description: string | null
+          start_date: string | null
+          status: string
+          title: string
+          updated_at: string
+          work_done: string | null
+        }
+        Insert: {
+          achieved_results?: string | null
+          agenda?: string | null
+          axis?: string | null
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          evidence?: Json
+          expected_results?: string | null
+          id?: string
+          kind: string
+          objectives?: string | null
+          organization_id?: string | null
+          outcomes?: Json
+          owner_id?: string
+          participants?: string | null
+          problem?: string | null
+          problem_description?: string | null
+          referrals?: string | null
+          solution?: string | null
+          solution_description?: string | null
+          start_date?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          work_done?: string | null
+        }
+        Update: {
+          achieved_results?: string | null
+          agenda?: string | null
+          axis?: string | null
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          evidence?: Json
+          expected_results?: string | null
+          id?: string
+          kind?: string
+          objectives?: string | null
+          organization_id?: string | null
+          outcomes?: Json
+          owner_id?: string
+          participants?: string | null
+          problem?: string | null
+          problem_description?: string | null
+          referrals?: string | null
+          solution?: string | null
+          solution_description?: string | null
+          start_date?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          work_done?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activities_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      actors: {
+        Row: {
+          actor_name: string
+          address: string | null
+          birth_date: string | null
+          created_at: string
+          document: string | null
+          email: string | null
+          id: string
+          institution_name: string
+          institution_type: string
+          owner_id: string
+          phone: string | null
+          position: string | null
+        }
+        Insert: {
+          actor_name: string
+          address?: string | null
+          birth_date?: string | null
+          created_at?: string
+          document?: string | null
+          email?: string | null
+          id?: string
+          institution_name: string
+          institution_type?: string
+          owner_id?: string
+          phone?: string | null
+          position?: string | null
+        }
+        Update: {
+          actor_name?: string
+          address?: string | null
+          birth_date?: string | null
+          created_at?: string
+          document?: string | null
+          email?: string | null
+          id?: string
+          institution_name?: string
+          institution_type?: string
+          owner_id?: string
+          phone?: string | null
+          position?: string | null
+        }
+        Relationships: []
+      }
+      organizations: {
+        Row: {
+          address: string | null
+          contact: string | null
+          created_at: string
+          demand: string | null
+          document: string | null
+          email: string | null
+          id: string
+          kind: string
+          maturity: string | null
+          name: string
+          notes: string | null
+          owner_id: string
+          phone: string | null
+          referral: string | null
+          region: string | null
+          sector: string | null
+          size: string | null
+          stage: string
+        }
+        Insert: {
+          address?: string | null
+          contact?: string | null
+          created_at?: string
+          demand?: string | null
+          document?: string | null
+          email?: string | null
+          id?: string
+          kind?: string
+          maturity?: string | null
+          name: string
+          notes?: string | null
+          owner_id?: string
+          phone?: string | null
+          referral?: string | null
+          region?: string | null
+          sector?: string | null
+          size?: string | null
+          stage?: string
+        }
+        Update: {
+          address?: string | null
+          contact?: string | null
+          created_at?: string
+          demand?: string | null
+          document?: string | null
+          email?: string | null
+          id?: string
+          kind?: string
+          maturity?: string | null
+          name?: string
+          notes?: string | null
+          owner_id?: string
+          phone?: string | null
+          referral?: string | null
+          region?: string | null
+          sector?: string | null
+          size?: string | null
+          stage?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          full_name: string
+          governance: string | null
+          id: string
+          phone: string | null
+          region: string | null
+        }
+        Insert: {
+          created_at?: string
+          full_name?: string
+          governance?: string | null
+          id: string
+          phone?: string | null
+          region?: string | null
+        }
+        Update: {
+          created_at?: string
+          full_name?: string
+          governance?: string | null
+          id?: string
+          phone?: string | null
+          region?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "coordinator" | "agent" | "viewer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +400,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "coordinator", "agent", "viewer"],
+    },
   },
 } as const
