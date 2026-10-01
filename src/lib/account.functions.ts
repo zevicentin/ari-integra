@@ -27,6 +27,7 @@ export const registerAccount = createServerFn({ method: "POST" })
     });
     if (signUpError) throw new Error(signUpError.message);
     if (!authData.user) throw new Error("Não foi possível criar a conta.");
+    if (authData.user.identities?.length === 0) throw new Error("Este e-mail já está cadastrado.");
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error: roleError } = await supabaseAdmin.from("user_roles").insert({
