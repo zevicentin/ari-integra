@@ -12,7 +12,7 @@ const registrationSchema = z.object({
 });
 
 export const registerAccount = createServerFn({ method: "POST" })
-  .inputValidator((data) => registrationSchema.parse(data))
+  .validator((data) => registrationSchema.parse(data))
   .handler(async ({ data }) => {
     const url = process.env["SUPABASE_URL"];
     const publishableKey = process.env["SUPABASE_PUBLISHABLE_KEY"];
@@ -44,6 +44,36 @@ export const registerAccount = createServerFn({ method: "POST" })
     }
 
     return { requiresEmailConfirmation: !authData.session };
+  });
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, "Informe a senha atual."),
+  newPassword: z.string().min(6, "A nova senha deve ter pelo menos 6 caracteres."),
+});
+
+export const changeOwnPassword = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((data) => changePasswordSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    if (data.currentPassword === data.newPassword) throw new Error("A nova senha deve ser diferente da senha atual.");
+    const url = process.env["SUPABASE_URL"];
+    const publishableKey = process.env["SUPABASE_PUBLISHABLE_KEY"];
+    if (!url || !publishableKey) throw new Error("A troca de senha está temporariamente indisponível.");
+
+    const email = String(context.claims["email"] || "");
+    if (!email) throw new Error("Não foi possível identificar o e-mail da conta.");
+
+    const authClient = createClient<Database>(url, publishableKey, {
+      auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
+    });
+    const { error: signInError } = await authClient.auth.signInWithPassword({ email, password: data.currentPassword });
+    if (signInError) throw new Error("Senha atual incorreta.");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(context.userId, { password: data.newPassword });
+    if (updateError) throw new Error("Não foi possível alterar a senha. Tente novamente.");
+
+    return { ok: true };
   });
 
 const reviewSchema = z.object({
@@ -81,7 +111,7 @@ export const listAccountRequests = createServerFn({ method: "GET" })
 
 export const reviewAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data) => reviewSchema.parse(data))
+  .validator((data) => reviewSchema.parse(data))
   .handler(async ({ data, context }) => {
     await requireAdmin(context);
     if (data.userId === context.userId) throw new Error("A conta administradora não pode revisar a si mesma.");

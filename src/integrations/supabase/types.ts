@@ -25,11 +25,13 @@ export type Database = {
           evidence: Json
           expected_results: string | null
           id: string
+          indicators: string[]
           kind: string
           objectives: string | null
           organization_id: string | null
           outcomes: Json
           owner_id: string
+          participant_agents: string[]
           participants: string | null
           problem: string | null
           problem_description: string | null
@@ -52,11 +54,13 @@ export type Database = {
           evidence?: Json
           expected_results?: string | null
           id?: string
+          indicators?: string[]
           kind: string
           objectives?: string | null
           organization_id?: string | null
           outcomes?: Json
           owner_id?: string
+          participant_agents?: string[]
           participants?: string | null
           problem?: string | null
           problem_description?: string | null
@@ -79,11 +83,13 @@ export type Database = {
           evidence?: Json
           expected_results?: string | null
           id?: string
+          indicators?: string[]
           kind?: string
           objectives?: string | null
           organization_id?: string | null
           outcomes?: Json
           owner_id?: string
+          participant_agents?: string[]
           participants?: string | null
           problem?: string | null
           problem_description?: string | null
@@ -247,6 +253,54 @@ export type Database = {
         }
         Relationships: []
       }
+      strategy_actions: {
+        Row: {
+          activities: Json
+          axis: string
+          created_at: string
+          description: string
+          expected_results: Json
+          id: string
+          owner_id: string
+          problem: string
+          problem_description: string
+          solution: string
+          solution_description: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          activities?: Json
+          axis: string
+          created_at?: string
+          description?: string
+          expected_results?: Json
+          id?: string
+          owner_id?: string
+          problem?: string
+          problem_description?: string
+          solution?: string
+          solution_description?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          activities?: Json
+          axis?: string
+          created_at?: string
+          description?: string
+          expected_results?: Json
+          id?: string
+          owner_id?: string
+          problem?: string
+          problem_description?: string
+          solution?: string
+          solution_description?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -270,6 +324,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      activity_agent_choices: {
+        Args: never
+        Returns: {
+          full_name: string
+          user_id: string
+        }[]
+      }
       coordination_participants: {
         Args: never
         Returns: {
