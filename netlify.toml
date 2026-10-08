@@ -1,10 +1,8 @@
-# Deploy to Netlify as a server-side app (TanStack Start / Nitro): the netlify preset emits
-# static assets to .output/public and the SSR handler to .netlify/functions-internal. The
-# default build preset (cloudflare-module, used by Lovable Cloud) stays untouched.
+# Deploy to Netlify as a server-side app (TanStack Start / Nitro). The nitro "netlify" preset
+# bundles the SSR handler into .netlify/functions-internal and copies the static assets to ./dist,
+# but it leaves _redirects empty, so scripts/netlify-redirect.mjs writes the catch-all rule after
+# the build. The default build preset (cloudflare-module, used by Lovable Cloud) stays untouched.
 [build]
-  command = "npm run build"
-  publish = ".output/public"
+  command = "NITRO_PRESET=netlify npm run build && node scripts/netlify-redirect.mjs"
+  publish = "dist"
   functions = ".netlify/functions-internal"
-
-[build.environment]
-  NITRO_PRESET = "netlify"
