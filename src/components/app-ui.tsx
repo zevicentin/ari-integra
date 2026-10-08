@@ -22,6 +22,6 @@ export function SearchBox({ value, onChange, placeholder }: { value: string; onC
 
 export function Empty({ text }: { text: string }) { return <div className="py-12 text-center text-sm text-muted-foreground">{text}</div>; }
 
-export function RowActions({ edit, remove, readOnly }: { edit: () => void; remove: () => void; readOnly?: boolean | undefined }) { return readOnly ? null : <div className="flex gap-1"><Button variant="ghost" size="icon" title="Editar" aria-label="Editar" onClick={edit}><Pencil /></Button><Button variant="ghost" size="icon" title="Excluir" aria-label="Excluir" onClick={remove}><Trash2 /></Button></div>; }
+export function RowActions({ edit, remove, readOnly, canRemove = true }: { edit: () => void; remove: () => void; readOnly?: boolean | undefined; canRemove?: boolean }) { return readOnly ? null : <div className="flex gap-1"><Button variant="ghost" size="icon" title="Editar" aria-label="Editar" onClick={edit}><Pencil /></Button>{canRemove && <Button variant="ghost" size="icon" title="Excluir" aria-label="Excluir" onClick={remove}><Trash2 /></Button>}</div>; }
 
 export function Bar({ label, count, total }: { label: string; count: number; total: number }) { return <div><div className="flex justify-between gap-3 text-xs mb-2"><span className="text-muted-foreground">{label}</span><b>{count}</b></div><div className="h-2 rounded-full bg-secondary overflow-hidden"><div className="h-full bg-primary rounded-full" style={{ width: `${total ? count / total * 100 : 0}%` }} /></div></div>; }
