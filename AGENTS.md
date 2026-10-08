@@ -19,3 +19,11 @@
 - Resolve coordination-meeting participant choices through an authenticated database function that excludes privileged and viewer roles, so users do not need direct access to other accounts' role rows.
 - Create email accounts through a validated server function that assigns roles separately; coordinators have database-enforced read-only access to all records.
 - Keep requested account roles separate from granted roles and grant access only after an administrator approves the account.
+
+## Verification
+
+- `npx tsc --noEmit`, `npm test` and `npm run build` are the gates — all three must be clean before committing.
+- `npm run dev` → http://localhost:8080/ must answer 200 with `lang="pt-BR"` in the HTML.
+- `npm run lint` is informational only: it carries a pre-existing baseline of `Delete ␍` prettier errors from `core.autocrlf=true`. Judge new files by their own error count, never expect a repo-wide zero.
+- `npm run preview` is broken by the template (it looks for `dist/server/server.js` while builds go to `.output/` under the cloudflare-module preset); verify serving with the dev server instead.
+- `npm run evidence:prune` dry-runs the orphan evidence cleanup (`--delete` removes them; it reads `SUPABASE_SERVICE_ROLE_KEY` from `.env.local` without printing it).
