@@ -1,7 +1,9 @@
 import type { Json } from "@/integrations/supabase/types";
-import { isoToBrDate, formatDate, isoDates } from "@/lib/dates";
+import { isoToBrDate, isoDates } from "@/lib/dates";
 
-export const taskPeriod = (task: PlanTask) => !task.start_date && !task.end_date ? "" : task.end_date ? `${formatDate(task.start_date)} a ${formatDate(task.end_date)}` : `a partir de ${formatDate(task.start_date)}`;
+// A plan task lives in dd/mm/aaaa from the editor on, so the period is written straight from the
+// task: formatDate only reads yyyy-mm-dd and would print "Invalid Date" here.
+export const taskPeriod = (task: PlanTask) => !task.start_date && !task.end_date ? "" : task.end_date ? `${task.start_date || "—"} a ${task.end_date}` : `a partir de ${task.start_date}`;
 
 export type LinkedActivity = { description: string; status: string; start_date: string; end_date: string };
 

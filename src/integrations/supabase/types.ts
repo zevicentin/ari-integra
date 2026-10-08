@@ -346,6 +346,13 @@ export type Database = {
         Returns: boolean
       }
       is_account_approved: { Args: { _user_id?: string }; Returns: boolean }
+      review_account: {
+        Args: {
+          _decision: string
+          _user_id: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "coordinator" | "agent" | "viewer"

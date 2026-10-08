@@ -116,21 +116,13 @@ export const reviewAccount = createServerFn({ method: "POST" })
     await requireAdmin(context);
     if (data.userId === context.userId) throw new Error("A conta administradora não pode revisar a si mesma.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from("profiles")
-      .select("requested_role")
-      .eq("id", data.userId)
-      .single();
-    if (profileError || !profile) throw new Error("Solicitação não encontrada.");
-
-    const { error: clearRoleError } = await supabaseAdmin.from("user_roles").delete().eq("user_id", data.userId);
-    if (clearRoleError) throw new Error("Não foi possível atualizar o acesso.");
-    if (data.decision === "approved") {
-      if (profile.requested_role !== "agent" && profile.requested_role !== "coordinator") throw new Error("Tipo de usuário inválido.");
-      const { error: roleError } = await supabaseAdmin.from("user_roles").insert({ user_id: data.userId, role: profile.requested_role });
-      if (roleError) throw new Error("Não foi possível liberar o acesso.");
+    // One SQL call replaces the three separate writes: review_account clears the old role,
+    // grants the requested one and sets the approval status inside a single transaction, so
+    // the database never keeps half of a decision. Its validations come back in Portuguese.
+    const { error } = await supabaseAdmin.rpc("review_account", { _user_id: data.userId, _decision: data.decision });
+    if (error) {
+      const known = ["Solicitação não encontrada.", "Tipo de usuário inválido.", "Decisão inválida:"];
+      throw new Error(known.some(text => error.message.includes(text)) ? error.message : "Não foi possível concluir a análise.");
     }
-    const { error: updateError } = await supabaseAdmin.from("profiles").update({ approval_status: data.decision }).eq("id", data.userId);
-    if (updateError) throw new Error("Não foi possível concluir a análise.");
     return { ok: true };
   });

@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Paperclip, Trash2, KeyRound, X, Plus } from "lucide-react";
 import type { Json } from "@/integrations/supabase/types";
 import { changeOwnPassword } from "@/lib/account.functions";
+import { removeEvidence } from "@/lib/evidence";
 import { field } from "@/components/field";
 import { PlanActivities } from "@/components/plan-widgets";
 import { statuses, orgDefaults, strategyDefaults, stages, indicatorCatalog, axes, activityKinds, dateLabels, actorDefaults, activityDefaults, dateFieldKeys } from "@/lib/constants";
@@ -32,7 +33,7 @@ export function Editor({ kind, row, userId, userName, organizations, actors, coo
   const set = (key: string, value: string) => setValues(v => ({ ...v, [key]: value }));
   useEffect(() => { if (!savedEvidence.length) return; let cancelled = false; Promise.all(savedEvidence.map(async path => { const { data } = await supabase.storage.from("ari-evidence").createSignedUrl(path, 3600); return [path, data?.signedUrl || ""] as const; })).then(pairs => { if (!cancelled) setPreviewUrls(Object.fromEntries(pairs)); }); return () => { cancelled = true; }; }, [savedEvidence]);
   const isMeeting = values['kind']?.includes("Reuni") || values['kind']?.includes("reuni"); const isOrganizer = values['kind'] === "Evento como organizador";
-  async function submit(e: FormEvent) { e.preventDefault(); setBusy(true); setMessage("");
+  async function submit(e: FormEvent) { e.preventDefault(); setBusy(true); setMessage(""); const uploaded: string[] = [];
     try {
       if (kind === "password") {
         const currentPassword = values['current_password'] || "";
@@ -52,10 +53,14 @@ export function Editor({ kind, row, userId, userName, organizations, actors, coo
       if (kind === "actor") { const owner = row && "owner_id" in row ? row.owner_id : userId; const data = { ...actorDefaults, ...values, birth_date: toIsoDate(values['birth_date'] || "", dateLabels['birth_date'] || "Data de nascimento") }; confirmed(row ? await supabase.from("actors").update(data).eq("id", row.id).select().maybeSingle() : await supabase.from("actors").insert({ ...data, owner_id: owner }).select().single(), "o ator da governança"); }
       if (kind === "activity") {
         const evidence = [...savedEvidence];
-        for (const file of files) { const path = `${userId}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`; const { error } = await supabase.storage.from("ari-evidence").upload(path, file); if (error) throw error; evidence.push(path); }
+        for (const file of files) { const path = `${userId}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`; const { error } = await supabase.storage.from("ari-evidence").upload(path, file); if (error) throw error; uploaded.push(path); evidence.push(path); }
          const startDate = toIsoDate(values['start_date'] || "", isMeeting ? "Data da reunião" : "Data de início"); const endDate = toIsoDate(values['end_date'] || "", "Data de conclusão");
          const payload = { ...activityDefaults, ...values, title: values['kind'] === "Reunião de governança" || values['kind'] === "Reunião com a coordenação" ? `${values['kind']}${startDate ? ` - ${formatDate(startDate)}` : ""}` : values['title'] || "", start_date: startDate, end_date: endDate, organization_id: values['kind'] === "Reunião de governança" || values['kind'] === "Reunião com a coordenação" || values['kind'] === "Evento como ouvinte" ? null : values['organization_id'] || null, agenda: values['kind'] === "Reunião de governança" ? "" : values['agenda'] || "", axis: values['axis'] || "", owner_id: row && "owner_id" in row ? row.owner_id : userId, outcomes: outcomes.map(outcome => ({ ...outcome, ...isoDates(outcome), activities: outcome.activities.map(activity => isoDates(activity)) })) as unknown as Json, indicators, participant_agents: participantAgents, evidence: evidence as Json, updated_at: new Date().toISOString() };
         confirmed(row ? await supabase.from("activities").update(payload).eq("id", row.id).select().maybeSingle() : await supabase.from("activities").insert(payload).select().single(), "a atividade");
+        // A path the saved row no longer keeps has nothing pointing at it anymore, so the object
+        // leaves the bucket right after the record accepted its new evidence list.
+        const previous = row && "evidence" in row && Array.isArray(row.evidence) ? row.evidence : [];
+        await removeEvidence(previous.filter(path => typeof path === "string" && !evidence.includes(path)));
       }
       if (kind === "strategy") {
         // The axis is a NOT NULL column guarded by a catalog CHECK, and the select always
@@ -68,7 +73,10 @@ export function Editor({ kind, row, userId, userName, organizations, actors, coo
         confirmed(row ? await supabase.from("strategy_actions").update(payload).eq("id", row.id).select().maybeSingle() : await supabase.from("strategy_actions").insert(payload).select().single(), "a ação do plano de estratégias");
       }
       onSaved();
-    } catch (error) { const text = error instanceof Error ? error.message : "Erro ao salvar registro."; setMessage(text); onError(text); } finally { setBusy(false); }
+    } catch (error) { // The files uploaded in this attempt are referenced by no row yet, so a save
+      // that failed anywhere — a rejected date, a refused write — must take them back out.
+      if (kind === "activity") await removeEvidence(uploaded);
+      const text = error instanceof Error ? error.message : "Erro ao salvar registro."; setMessage(text); onError(text); } finally { setBusy(false); }
   }
   const f = (label: string, name: string, opts?: { type?: string; options?: (string | { value: string; label: string })[]; textarea?: boolean; required?: boolean; mask?: (value: string) => string }) => field(label, name, values[name] || "", set, opts);
   const title = kind === "activity" ? "atividade" : kind === "strategy" ? "ação do plano" : kind === "organization" ? "organização" : kind === "actor" ? "ator da governança" : kind === "profile" ? "perfil" : "senha";

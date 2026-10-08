@@ -1,3 +1,4 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useEffect, useMemo } from "react";
@@ -19,6 +20,7 @@ import { StrategyImportModal } from "@/features/strategy-import-modal";
 import { ariFallback } from "@/lib/assets";
 import { statuses, nav, stages, axes, activityKinds } from "@/lib/constants";
 import { monthLabel, formatDate } from "@/lib/dates";
+import { removeEvidence } from "@/lib/evidence";
 import { initials, confirmed } from "@/lib/masks";
 import { type PlanActivity, storedActivities, completionOf, normalizeActivities } from "@/lib/plan";
 import type { CoordinationParticipant, ApprovalRequest, Organization, StrategyAction, Profile, AgentChoice, ActivityRow, Section, Actor } from "@/lib/types";
@@ -41,17 +43,62 @@ function Index() {
   return session ? <Workspace session={session} /> : <Login />;
 }
 
+/** Everything the workspace pages read, loaded together so one query can replace it all. */
+type WorkspaceData = {
+  role: string;
+  approvalStatus: string | null;
+  profiles: Profile[];
+  activities: ActivityRow[];
+  organizations: Organization[];
+  actors: Actor[];
+  strategyActions: StrategyAction[];
+  coordinationParticipants: CoordinationParticipant[];
+  agentChoices: AgentChoice[];
+  approvalRequests: ApprovalRequest[];
+  error: string;
+};
+
 function Workspace({ session }: { session: Session }) {
   const [section, setSection] = useState<Section>("overview"); const [mobileNav, setMobileNav] = useState(false);
-  const [activities, setActivities] = useState<ActivityRow[]>([]); const [organizations, setOrganizations] = useState<Organization[]>([]); const [actors, setActors] = useState<Actor[]>([]); const [profiles, setProfiles] = useState<Profile[]>([]); const [strategyActions, setStrategyActions] = useState<StrategyAction[]>([]);
-  const [role, setRole] = useState("agent"); const [approvalStatus, setApprovalStatus] = useState<string | null>(null); const [approvalRequests, setApprovalRequests] = useState<ApprovalRequest[]>([]); const [coordinationParticipants, setCoordinationParticipants] = useState<CoordinationParticipant[]>([]); const [agentChoices, setAgentChoices] = useState<AgentChoice[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [toast, setToast] = useState("");
+  const [toast, setToast] = useState("");
   const [modal, setModal] = useState<"activity" | "strategy" | "organization" | "actor" | "profile" | "password" | "import" | "report" | null>(null); const [editing, setEditing] = useState<ActivityRow | StrategyAction | Organization | Actor | Profile | null>(null);
   const [strategyImport, setStrategyImport] = useState(false);
   const [query, setQuery] = useState(""); const [statusFilter, setStatusFilter] = useState(""); const [kindFilter, setKindFilter] = useState(""); const [axisFilter, setAxisFilter] = useState(""); const [month, setMonth] = useState(() => new Date());
   const listRequests = useServerFn(listAccountRequests); const review = useServerFn(reviewAccount);
+  const workspaceKey = ["workspace", session.user.id] as const;
+  // The whole workspace comes from one query: the profile gate, the role and every list the pages
+  // read. What load() used to write into separate states is returned here instead, so a save only
+  // refetches the same key and the pages keep rendering with the data they already have.
+  async function fetchWorkspace(): Promise<WorkspaceData> {
+    const base: WorkspaceData = { role: "agent", approvalStatus: null, profiles: [], activities: [], organizations: [], actors: [], strategyActions: [], coordinationParticipants: [], agentChoices: [], approvalRequests: [], error: "" };
+    let { data: ownProfile, error: ownProfileError } = await supabase.from("profiles").select("*").eq("id", session.user.id).maybeSingle();
+    if (!ownProfile && !ownProfileError) {
+      const created = await supabase.from("profiles").insert({ id: session.user.id, full_name: String(session.user.user_metadata?.["full_name"] || session.user.email?.split("@")[0] || "Agente"), requested_role: "agent", approval_status: "pending" }).select().single();
+      ownProfile = created.data; ownProfileError = created.error;
+    }
+    const r = await supabase.from("user_roles").select("role").eq("user_id", session.user.id).limit(1);
+    const role = r.data?.[0]?.role || "agent";
+    const approvalStatus = ownProfile?.approval_status || null;
+    if (approvalStatus !== "approved") return { ...base, role, approvalStatus, profiles: ownProfile ? [ownProfile] : [], error: ownProfileError?.message || r.error?.message || "" };
+    const [a, o, t, p, participants, agentList, s] = await Promise.all([supabase.from("activities").select("*").order("created_at", { ascending: false }), supabase.from("organizations").select("*").order("created_at", { ascending: false }), supabase.from("actors").select("*").order("created_at", { ascending: false }), supabase.from("profiles").select("*").eq("approval_status", "approved"), supabase.rpc("coordination_participants"), supabase.rpc("activity_agent_choices"), supabase.from("strategy_actions").select("*").order("created_at", { ascending: false })]);
+    let error = [a.error, o.error, t.error, p.error, participants.error, agentList.error, s.error].filter(Boolean).map(x => typeof x === "string" ? x : x?.message).join(" · ");
+    let approvalRequests: ApprovalRequest[] = [];
+    if (role === "admin") {
+      try { approvalRequests = await listRequests(); } catch (requestError) { error = [error, requestError instanceof Error ? requestError.message : "Não foi possível carregar as solicitações."].filter(Boolean).join(" · "); }
+    }
+    return { role, approvalStatus, profiles: p.data || [], activities: a.data || [], organizations: o.data || [], actors: t.data || [], strategyActions: s.data || [], coordinationParticipants: participants.data || [], agentChoices: agentList.data || [], approvalRequests, error };
+  }
+  const workspace = useQuery({ queryKey: workspaceKey, queryFn: fetchWorkspace, retry: false, refetchOnWindowFocus: false });
+  const queryClient = useQueryClient();
+  const loaded = workspace.data;
+  const loading = workspace.isPending;
+  const role = loaded?.role ?? "agent";
+  const approvalStatus = loaded?.approvalStatus ?? null;
+  const error = loaded?.error ?? "";
+  // The lists come out of one memo so each keeps a stable identity between renders: the pages
+  // feed them to useMemo, and a fresh array every render would recompute them for nothing.
+  const { approvalRequests, activities, organizations, actors, profiles, strategyActions, coordinationParticipants, agentChoices } = useMemo(() => ({ approvalRequests: loaded?.approvalRequests ?? [], activities: loaded?.activities ?? [], organizations: loaded?.organizations ?? [], actors: loaded?.actors ?? [], profiles: loaded?.profiles ?? [], strategyActions: loaded?.strategyActions ?? [], coordinationParticipants: loaded?.coordinationParticipants ?? [], agentChoices: loaded?.agentChoices ?? [] }), [loaded]);
   const isManager = role === "admin" || role === "coordinator"; const readOnly = role === "viewer" || role === "coordinator";
-   async function load() { setLoading(true); setError(""); let { data: ownProfile, error: ownProfileError } = await supabase.from("profiles").select("*").eq("id", session.user.id).maybeSingle(); if (!ownProfile && !ownProfileError) { const created = await supabase.from("profiles").insert({ id: session.user.id, full_name: String(session.user.user_metadata?.["full_name"] || session.user.email?.split("@")[0] || "Agente"), requested_role: "agent", approval_status: "pending" }).select().single(); ownProfile = created.data; ownProfileError = created.error; } const r = await supabase.from("user_roles").select("role").eq("user_id", session.user.id).limit(1); const nextRole = r.data?.[0]?.role || "agent"; setRole(nextRole); setApprovalStatus(ownProfile?.approval_status || null); if (ownProfile?.approval_status !== "approved") { setProfiles(ownProfile ? [ownProfile] : []); setError(ownProfileError?.message || r.error?.message || ""); setLoading(false); return; } const [a, o, t, p, participants, agentList, s] = await Promise.all([supabase.from("activities").select("*").order("created_at", { ascending: false }), supabase.from("organizations").select("*").order("created_at", { ascending: false }), supabase.from("actors").select("*").order("created_at", { ascending: false }), supabase.from("profiles").select("*").eq("approval_status", "approved"), supabase.rpc("coordination_participants"), supabase.rpc("activity_agent_choices"), supabase.from("strategy_actions").select("*").order("created_at", { ascending: false })]); setActivities(a.data || []); setOrganizations(o.data || []); setActors(t.data || []); setProfiles(p.data || []); setCoordinationParticipants(participants.data || []); setAgentChoices(agentList.data || []); setStrategyActions(s.data || []); if (nextRole === "admin") { try { setApprovalRequests(await listRequests()); } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Não foi possível carregar as solicitações."); } } setError(current => [current, a.error, o.error, t.error, p.error, participants.error, agentList.error, s.error].filter(Boolean).map(x => typeof x === "string" ? x : x?.message).join(" · ")); setLoading(false); }
-  useEffect(() => { void load(); }, [session.user.id]);
   const myProfile = profiles.find(p => p.id === session.user.id);
   const displayName = myProfile?.full_name || session.user.user_metadata?.["full_name"] || session.user.email?.split("@")[0] || "Agente";
   const filtered = useMemo(() => activities.filter(a => (!query || `${a.title} ${a.description} ${a.kind}`.toLowerCase().includes(query.toLowerCase())) && (!statusFilter || a.status === statusFilter) && (!kindFilter || a.kind === kindFilter)), [activities, query, statusFilter, kindFilter]);
@@ -67,16 +114,19 @@ function Workspace({ session }: { session: Session }) {
     const total = shares.length;
     return { total, done: shares.filter(share => share === 1).length, percent: total ? Math.round(shares.reduce((sum, share) => sum + share, 0) / total * 100) : null };
   }, [strategyActions]);
-  async function decideAccount(userId: string, decision: "approved" | "rejected") { try { await review({ data: { userId, decision } }); setToast(decision === "approved" ? "Conta aprovada e acesso liberado." : "Conta recusada e mantida bloqueada."); setApprovalRequests(await listRequests()); } catch (reviewError) { setToast(reviewError instanceof Error ? reviewError.message : "Não foi possível analisar a conta."); } }
+  async function decideAccount(userId: string, decision: "approved" | "rejected") { try { await review({ data: { userId, decision } }); setToast(decision === "approved" ? "Conta aprovada e acesso liberado." : "Conta recusada e mantida bloqueada."); const requests = await listRequests(); queryClient.setQueryData<WorkspaceData>(workspaceKey, current => current ? { ...current, approvalRequests: requests } : current); } catch (reviewError) { setToast(reviewError instanceof Error ? reviewError.message : "Não foi possível analisar a conta."); } }
   function open(which: typeof modal, row: typeof editing = null) { if (readOnly && which !== "profile") return; setEditing(row); setModal(which); }
   function openPassword() { setEditing(null); setModal("password"); }
-  async function remove(which: "activities" | "organizations" | "actors" | "strategy_actions", id: string) { if (!window.confirm("Excluir este registro? Esta ação não pode ser desfeita.")) return; const { error } = await supabase.from(which).delete().eq("id", id); if (error) setToast(`Não foi possível excluir: ${error.message}`); else { setToast("Registro excluído."); void load(); } }
+  // The row goes first: only after it is gone do its evidence objects lose the record that
+  // pointed at them, and the bucket cleanup is best effort so a storage hiccup never keeps
+  // the record alive.
+  async function remove(which: "activities" | "organizations" | "actors" | "strategy_actions", id: string) { if (!window.confirm("Excluir este registro? Esta ação não pode ser desfeita.")) return; const found = which === "activities" ? (await supabase.from("activities").select("evidence").eq("id", id).maybeSingle()).data?.evidence : null; const paths = Array.isArray(found) ? found : []; const { error } = await supabase.from(which).delete().eq("id", id); if (error) setToast(`Não foi possível excluir: ${error.message}`); else { setToast("Registro excluído."); await removeEvidence(paths); void workspace.refetch(); } }
   // A task written from the plan page only touches that action's own activity list: the action's
   // description, axis and status are left as they are, and the saved row is put back in place so the
   // execution percentage moves without reloading the page.
   async function saveTasks(action: StrategyAction, next: PlanActivity[]) {
     const saved = confirmed<StrategyAction>(await supabase.from("strategy_actions").update({ activities: storedActivities(next) as unknown as Json, updated_at: new Date().toISOString() }).eq("id", action.id).select().single(), "a atividade do plano de estratégias");
-    setStrategyActions(current => current.map(item => item.id === saved.id ? saved : item));
+    queryClient.setQueryData<WorkspaceData>(workspaceKey, current => current ? { ...current, strategyActions: current.strategyActions.map(item => item.id === saved.id ? saved : item) } : current);
     setToast("Atividade salva no plano de estratégias.");
   }
   function exportCSV() { const headers = ["Título", "Tipo", "Status", "Início", "Conclusão", "Organização", "Responsável", "Participantes (agentes)", "Resultados alcançados"]; const rows = filtered.map(a => [a.title, a.kind, a.status, formatDate(a.start_date), formatDate(a.end_date), organizations.find(o => o.id === a.organization_id)?.name || "", profiles.find(p => p.id === a.owner_id)?.full_name || "", (a.participant_agents || []).map(id => agentChoices.find(choice => choice.user_id === id)?.full_name || "").filter(Boolean).join(", "), a.achieved_results || ""]); const csv = [headers, ...rows].map(row => row.map(cell => `"${String(cell).replaceAll('"', '""')}"`).join(";")).join("\r\n"); const url = URL.createObjectURL(new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" })); const link = document.createElement("a"); link.href = url; link.download = "relatorio-ari.csv"; link.click(); URL.revokeObjectURL(url); }
@@ -92,5 +142,5 @@ function Workspace({ session }: { session: Session }) {
     {section === "agents" && <><Toolbar title="Agentes regionais" subtitle="Profissionais vinculados ao programa ARI." /><div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">{profiles.map(p => <div className="app-panel p-5 flex items-start gap-4" key={p.id}><div className="w-11 h-11 shrink-0 rounded-full bg-secondary text-primary grid place-items-center font-bold">{initials(p.full_name)}</div><div className="min-w-0"><h3 className="font-bold">{p.full_name || "Agente regional"}</h3><p className="text-sm text-muted-foreground mt-1">{p.region || "Região não informada"}</p><p className="text-xs text-muted-foreground mt-2">{p.governance || "Governança não informada"}</p>{p.phone && <p className="text-xs mt-2">{p.phone}</p>}</div></div>)}{profiles.length === 0 && <div className="app-panel p-5"><Empty text="Nenhum perfil de agente preenchido ainda. Atualize seu perfil para aparecer aqui." /></div>}</div></>}
     {section === "approvals" && role === "admin" && <><Toolbar title="Aprovação de contas" subtitle="Analise novas solicitações de acesso ao sistema." /><div className="app-panel overflow-x-auto"><table className="w-full text-sm text-left"><thead className="bg-muted text-muted-foreground text-xs uppercase"><tr><th className="p-4">Usuário</th><th className="p-4">Tipo solicitado</th><th className="p-4">Situação</th><th className="p-4">Solicitado em</th><th className="p-4">Ações</th></tr></thead><tbody>{approvalRequests.map(request => <tr key={request.id} className="border-t"><td className="p-4 font-bold">{request.full_name}<span className="block font-normal text-xs text-muted-foreground mt-1">{request.email}</span></td><td className="p-4">{request.requested_role === "coordinator" ? "Coordenação" : "Agente"}</td><td className="p-4"><span className="rounded bg-secondary text-secondary-foreground px-2 py-1 text-xs">{request.approval_status === "rejected" ? "Recusada" : "Pendente"}</span></td><td className="p-4 whitespace-nowrap">{new Date(request.created_at).toLocaleDateString("pt-BR")}</td><td className="p-4"><div className="flex flex-wrap gap-2"><Button size="sm" onClick={() => void decideAccount(request.id, "approved")}><Check /> Aprovar</Button><Button size="sm" variant="outline" onClick={() => void decideAccount(request.id, "rejected")}><X /> Recusar</Button></div></td></tr>)}</tbody></table>{approvalRequests.length === 0 && <Empty text="Nenhuma conta aguardando análise." />}</div></>}
     {section === "reports" && <><div className="flex flex-wrap justify-between gap-4 mb-7"><div><h2 className="text-2xl font-bold">Relatórios e indicadores</h2><p className="text-sm text-muted-foreground mt-1">Resultados consolidados das atividades cadastradas.</p></div><div className="flex gap-2 no-print"><Button variant="outline" onClick={() => setModal("report")}><FileText /> Relatório mensal (.docx)</Button><Button variant="outline" onClick={() => window.print()}><Download /> Imprimir</Button><Button onClick={exportCSV}><Download /> Exportar CSV</Button></div></div><div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8"><Metric icon={ClipboardList} label="Atividades" value={activities.length} note="Registradas" /><Metric icon={Check} label="Concluídas" value={activities.filter(a => a.status === "Concluída").length} note="Finalizadas" /><Metric icon={Building2} label="Organizações" value={organizations.length} note="Cadastradas" /><Metric icon={Target} label="Taxa de conclusão" value={`${activities.length ? Math.round(activities.filter(a => a.status === "Concluída").length / activities.length * 100) : 0}%`} note="Das ações registradas" /></div><div className="grid lg:grid-cols-2 gap-6"><div className="app-panel p-6"><h3 className="font-bold mb-6">Atividades por tipo</h3><div className="space-y-4">{activityKinds.map(kind => <Bar key={kind} label={kind} count={activities.filter(a => a.kind === kind).length} total={activities.length} />)}</div></div><div className="app-panel p-6"><h3 className="font-bold mb-6">Situação das atividades</h3><div className="space-y-4">{statuses.map(status => <Bar key={status} label={status} count={activities.filter(a => a.status === status).length} total={activities.length} />)}</div><h3 className="font-bold mt-10 mb-5">Etapas de atendimento</h3><div className="space-y-4">{stages.map(stage => <Bar key={stage} label={stage} count={organizations.filter(o => o.stage === stage).length} total={organizations.length} />)}</div></div></div><div className="app-panel mt-6 overflow-x-auto"><ActivityTable rows={filtered} organizations={organizations} agentChoices={agentChoices} onEdit={a => open("activity", a)} onDelete={a => remove("activities", a.id)} readOnly /></div></>}
-   </>}</main><Footer /></div>{modal && modal !== "import" && modal !== "report" && <Editor key={modal} kind={modal} row={editing} userId={session.user.id} userName={displayName} organizations={organizations} actors={orderedActors} coordinationParticipants={coordinationParticipants} agentChoices={agentChoices} onClose={() => setModal(null)} onChangePassword={openPassword} onSaved={message => { setModal(null); setToast(message || "Registro salvo com sucesso."); void load(); }} onError={setToast} />}{modal === "import" && <ImportModal userId={session.user.id} activities={activities} organizations={organizations} onClose={() => setModal(null)} onDone={message => { setToast(message); void load(); }} />}{modal === "report" && <ReportModal activities={activities} actorCount={actors.length} plan={planProgress} userName={displayName} onClose={() => setModal(null)} />}{strategyImport && <StrategyImportModal userId={session.user.id} actions={strategyActions} onClose={() => setStrategyImport(false)} onDone={message => { setStrategyImport(false); setToast(message); void load(); }} />}</div>;
+   </>}</main><Footer /></div>{modal && modal !== "import" && modal !== "report" && <Editor key={modal} kind={modal} row={editing} userId={session.user.id} userName={displayName} organizations={organizations} actors={orderedActors} coordinationParticipants={coordinationParticipants} agentChoices={agentChoices} onClose={() => setModal(null)} onChangePassword={openPassword} onSaved={message => { setModal(null); setToast(message || "Registro salvo com sucesso."); void workspace.refetch(); }} onError={setToast} />}{modal === "import" && <ImportModal userId={session.user.id} activities={activities} organizations={organizations} onClose={() => setModal(null)} onDone={message => { setToast(message); void workspace.refetch(); }} />}{modal === "report" && <ReportModal activities={activities} actorCount={actors.length} plan={planProgress} userName={displayName} onClose={() => setModal(null)} />}{strategyImport && <StrategyImportModal userId={session.user.id} actions={strategyActions} onClose={() => setStrategyImport(false)} onDone={message => { setStrategyImport(false); setToast(message); void workspace.refetch(); }} />}</div>;
 }
