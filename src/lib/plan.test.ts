@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { Json } from "@/integrations/supabase/types";
 import type { PlanActivity, PlanTask } from "@/lib/plan";
 import {
   completionOf,
@@ -8,6 +9,7 @@ import {
   normalizeOutcomes,
   normalizePlanTasks,
   normalizeResults,
+  planProgressOf,
   storedActivities,
   storedTask,
   taskPeriod,
@@ -218,5 +220,69 @@ describe("storedActivities", () => {
         ],
       },
     ]);
+  });
+});
+
+describe("planProgressOf", () => {
+  it("não tem percentual sem ações", () => {
+    expect(planProgressOf([])).toEqual({ total: 0, done: 0, percent: null });
+  });
+
+  it("soma tarefas únicas e subtasks de cada ação", () => {
+    const actions = [
+      {
+        activities: [
+          {
+            description: "Concluída",
+            status: "Concluída",
+            start_date: "",
+            end_date: "",
+            subtasks: [],
+          },
+        ],
+      },
+      {
+        activities: [
+          {
+            description: "Parcial",
+            status: "Não iniciada",
+            start_date: "",
+            end_date: "",
+            subtasks: [
+              {
+                description: "Filha 1",
+                status: "Concluída",
+                start_date: "",
+                end_date: "",
+              },
+              {
+                description: "Filha 2",
+                status: "Em andamento",
+                start_date: "",
+                end_date: "",
+              },
+            ],
+          },
+        ],
+      },
+    ] as unknown as { activities: Json }[];
+    expect(planProgressOf(actions)).toEqual({ total: 2, done: 1, percent: 75 });
+  });
+
+  it("ignora atividades sem descrição", () => {
+    const actions = [
+      {
+        activities: [
+          {
+            description: "   ",
+            status: "Concluída",
+            start_date: "",
+            end_date: "",
+            subtasks: [],
+          },
+        ],
+      },
+    ] as unknown as { activities: Json }[];
+    expect(planProgressOf(actions)).toEqual({ total: 0, done: 0, percent: null });
   });
 });

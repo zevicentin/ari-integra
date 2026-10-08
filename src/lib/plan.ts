@@ -90,3 +90,23 @@ export const storedTask = (task: PlanTask) => ({ ...task, ...isoDates(task), des
 export const storedActivities = (activities: PlanActivity[]) => activities
   .filter(activity => activity.description.trim())
   .map(activity => ({ ...activity, ...isoDates(activity), description: activity.description.trim(), subtasks: activity.subtasks.filter(task => task.description.trim()).map(storedTask) }));
+
+// The plan's execution percentage over any list of strategy actions — the dashboard reads it with
+// every action, the plan page with only the selected agent's. An empty list reports no percentage
+// rather than zero, so a portfolio without activities is never read as no performance.
+export type PlanProgress = { total: number; done: number; percent: number | null };
+
+export const planProgressOf = (actions: { activities: Json }[]): PlanProgress => {
+  const shares = actions
+    .flatMap((action) => normalizeActivities(action.activities))
+    .filter((activity) => activity.description.trim())
+    .map((activity) => completionOf(activity).share);
+  const total = shares.length;
+  return {
+    total,
+    done: shares.filter((share) => share === 1).length,
+    percent: total
+      ? Math.round((shares.reduce((sum, share) => sum + share, 0) / total) * 100)
+      : null,
+  };
+};

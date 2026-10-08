@@ -18,6 +18,7 @@
 - Write the plan's activities from the plan page itself, each one with a description, a status and a period, and let every activity hold any number of subtasks of that same shape, so the plan is the one place the plan is written and an activity's share of the execution percentage comes from its subtasks when it has any, or from its own status counted as a single task when it has none.
 - Resolve coordination-meeting participant choices through an authenticated database function that excludes privileged and viewer roles, so users do not need direct access to other accounts' role rows.
 - Create email accounts through a validated server function that assigns roles separately; coordinators have database-enforced read-only access to all records.
+- Let the coordinator select one agent to narrow activities, organizations, actors, the plan and reports to that agent's own records (joint activities included), while the dashboard stays an ecosystem-wide overview.
 - Keep requested account roles separate from granted roles and grant access only after an administrator approves the account.
 
 ## Verification
