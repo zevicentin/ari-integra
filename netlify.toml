@@ -1,0 +1,10 @@
+# Deploy to Netlify as a server-side app (TanStack Start / Nitro): the netlify preset emits
+# static assets to .output/public and the SSR handler to .netlify/functions-internal. The
+# default build preset (cloudflare-module, used by Lovable Cloud) stays untouched.
+[build]
+  command = "npm run build"
+  publish = ".output/public"
+  functions = ".netlify/functions-internal"
+
+[build.environment]
+  NITRO_PRESET = "netlify"
