@@ -220,6 +220,33 @@ export type Database = {
         }
         Relationships: []
       }
+      indicator_values: {
+        Row: {
+          accumulated: string
+          code: string
+          current: string
+          owner_id: string
+          previous: string
+          updated_at: string
+        }
+        Insert: {
+          accumulated?: string
+          code: string
+          current?: string
+          owner_id?: string
+          previous?: string
+          updated_at?: string
+        }
+        Update: {
+          accumulated?: string
+          code?: string
+          current?: string
+          owner_id?: string
+          previous?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           approval_status: string

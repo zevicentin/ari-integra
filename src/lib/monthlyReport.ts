@@ -128,6 +128,32 @@ export function formatPt(value: number): string {
   return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(value);
 }
 
+/**
+ * The maturity score is a single value per year ("3" or "3,5" or "3.5") with no thousand
+ * separators, so both dot and comma mean a decimal here. Anything that does not read as a plain
+ * number falls back to the currency parser.
+ */
+export function parseScore(value: string): number {
+  const trimmed = value.trim();
+  if (!trimmed) return 0;
+  const parsed = Number(trimmed.replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : parsePt(trimmed);
+}
+
+/**
+ * The accumulated result depends on the indicator's nature: for every other indicator and for
+ * ADES-01 (money raised through editals) the month's value sums with the previous one, while OBR 02
+ * (the annual ecosystem maturity score) holds a single value that replaces the previous one when a
+ * year's new evaluation is typed.
+ */
+export function accumulatedOf(code: string, previous: string, current: string): string {
+  if (code === "OBR 02") {
+    const value = current.trim() ? current : previous;
+    return formatPt(parseScore(value));
+  }
+  return formatPt(parsePt(previous) + parsePt(current));
+}
+
 const dateOf = (row: { start_date: string | null; end_date: string | null }): string | null =>
   row.start_date || row.end_date || null;
 
@@ -361,7 +387,7 @@ function fillIndicators(
       cells[0]?.s || "",
       setCellLines(cells[1]?.s || "", [previous]),
       setCellLines(cells[2]?.s || "", [current]),
-      setCellLines(cells[3]?.s || "", [formatPt(parsePt(previous) + parsePt(current))]),
+      setCellLines(cells[3]?.s || "", [accumulatedOf(code, previous, current)]),
       setCellLines(cells[4]?.s || "", [count.refs]),
     ]);
   }

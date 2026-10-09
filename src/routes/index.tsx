@@ -1093,6 +1093,7 @@ function Workspace({ session }: { session: Session }) {
           actorCount={visibleActors.length}
           plan={visiblePlanProgress}
           userName={displayName}
+          userId={session.user.id}
           onClose={() => setModal(null)}
         />
       )}

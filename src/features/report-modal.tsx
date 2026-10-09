@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { X, FileText } from "lucide-react";
-import { brDate, buildMonthlyReport, indicatorCounts, MONTHS_PT, stripDateSuffix, type ReportActivity, formatPt, filterMonthActivities, parsePt, type ReportEvidence } from "@/lib/monthlyReport";
+import { accumulatedOf, brDate, buildMonthlyReport, indicatorCounts, MONTHS_PT, stripDateSuffix, type ReportActivity, filterMonthActivities, type ReportEvidence } from "@/lib/monthlyReport";
 import type { Json } from "@/integrations/supabase/types";
 import { field } from "@/components/field";
 import { indicatorCatalog, indicatorLabel } from "@/lib/constants";
@@ -60,12 +60,15 @@ export async function downscaleImage(blob: Blob): Promise<{ bytes: Uint8Array; w
 // text, the twelve SETI indicators keep their computed counts but accept a typed override (a
 // currency line, for instance), the REF rows come from the month's own activities, and the
 // evidence images are re-encoded to JPEG before being embedded so any upload format fits the
-// template's content types.
-export function ReportModal({ activities, actorCount, plan, userName, onClose }: {
+// template's content types. The typed indicator values are kept per account, so the next count
+// starts from the accumulated result instead of an empty row: OBR 02 stores the annual maturity
+// score that replaces the previous one, ADES-01 sums the month's money into the accumulated value.
+export function ReportModal({ activities, actorCount, plan, userName, userId, onClose }: {
   activities: ActivityRow[];
   actorCount: number;
   plan: { total: number; done: number; percent: number | null };
   userName: string;
+  userId: string;
   onClose: () => void;
 }) {
   const [monthInput, setMonthInput] = useState(() => {
@@ -85,6 +88,7 @@ export function ReportModal({ activities, actorCount, plan, userName, onClose }:
     percentual: plan.percent === null ? "—" : `${plan.percent}%`,
   }));
   const [indicatorValues, setIndicatorValues] = useState<Record<string, { previous: string; current: string }>>({});
+  const [savedValues, setSavedValues] = useState<Record<string, { previous: string; current: string; accumulated: string }>>({});
   const [destaquePick, setDestaquePick] = useState("");
   const [destaque, setDestaque] = useState("");
   const [difficulties, setDifficulties] = useState("");
@@ -106,14 +110,40 @@ export function ReportModal({ activities, actorCount, plan, userName, onClose }:
     setDestaque("");
   }, [monthInput]);
 
+  // Pick up the values the account kept in previous reports: the accumulated result becomes the
+  // next month's starting point, and OBR 02/ADES-01 also regain their typed month value so the row
+  // reads the last known official number instead of an empty zero.
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const { data } = await supabase
+        .from("indicator_values")
+        .select("code, previous, current, accumulated")
+        .eq("owner_id", userId);
+      if (!cancelled && data) setSavedValues(Object.fromEntries(data.map(row => [row.code, row])));
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  const baselineOf = (code: string, key: "previous" | "current"): string => {
+    const saved = savedValues[code];
+    if (key === "previous") return saved?.accumulated?.trim() ? saved.accumulated : String(counts[code]?.previous ?? 0);
+    // ADES-01 starts the month empty so a new award sum is typed without double-counting; OBR 02
+    // keeps its annual score visible so it can be replaced.
+    if (code === "ADES-01") return "";
+    if (code === "OBR 02") return saved?.current?.trim() ? saved.current : String(counts[code]?.current ?? 0);
+    return String(counts[code]?.current ?? 0);
+  };
+
   const setHeaderField = (name: string, value: string) => setHeader(current => ({ ...current, [name]: value }));
   const shown = (code: string, key: "previous" | "current") =>
-    indicatorValues[code]?.[key] ?? String(counts[code]?.[key] ?? 0);
+    indicatorValues[code]?.[key] ?? baselineOf(code, key);
   const setIndicator = (code: string, key: "previous" | "current", value: string) =>
     setIndicatorValues(all => {
       const current = all[code] ?? {
-        previous: String(counts[code]?.previous ?? 0),
-        current: String(counts[code]?.current ?? 0),
+        previous: baselineOf(code, "previous"),
+        current: baselineOf(code, "current"),
       };
       return {
         ...all,
@@ -177,6 +207,25 @@ export function ReportModal({ activities, actorCount, plan, userName, onClose }:
         evidence,
         indicatorValues,
       });
+      // Keep the handwritten values for the next count, best effort: a storage hiccup must not
+      // block the report download. Only rows the user touched are written, each one replaced when
+      // this account generates another report with the same code.
+      const edited = Object.entries(indicatorValues);
+      if (edited.length) {
+        const rows = edited.map(([code, entry]) => ({
+          owner_id: userId,
+          code,
+          previous: entry.previous,
+          current: entry.current,
+          accumulated: accumulatedOf(code, entry.previous, entry.current),
+          updated_at: new Date().toISOString(),
+        }));
+        const { error: saveError } = await supabase
+          .from("indicator_values")
+          .upsert(rows, { onConflict: "owner_id,code" });
+        if (saveError) console.warn("Valores dos indicadores não salvos:", saveError.message);
+        else setSavedValues(current => ({ ...current, ...Object.fromEntries(rows.map(row => [row.code, row])) }));
+      }
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -191,7 +240,7 @@ export function ReportModal({ activities, actorCount, plan, userName, onClose }:
     }
   }
 
-  return <div className="fixed inset-0 z-50 bg-foreground/50 flex justify-end" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}><div role="dialog" aria-modal="true" aria-label="Relatório mensal em Word" className="bg-background w-full max-w-4xl h-full flex flex-col shadow-xl"><div className="bg-card border-b px-5 md:px-7 py-5 flex items-center justify-between"><div><h2 className="text-xl font-bold">Relatório mensal (.docx)</h2><p className="text-xs text-muted-foreground mt-1">Baixa o modelo oficial preenchido com as atividades do mês, os indicadores e as evidências. Nada é gravado no sistema.</p></div><Button variant="ghost" size="icon" aria-label="Fechar" onClick={onClose}><X /></Button></div>
+  return <div className="fixed inset-0 z-50 bg-foreground/50 flex justify-end" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}><div role="dialog" aria-modal="true" aria-label="Relatório mensal em Word" className="bg-background w-full max-w-4xl h-full flex flex-col shadow-xl"><div className="bg-card border-b px-5 md:px-7 py-5 flex items-center justify-between"><div><h2 className="text-xl font-bold">Relatório mensal (.docx)</h2><p className="text-xs text-muted-foreground mt-1">Baixa o modelo oficial preenchido com as atividades do mês, os indicadores e as evidências. Os indicadores digitados ficam salvos para a próxima contagem.</p></div><Button variant="ghost" size="icon" aria-label="Fechar" onClick={onClose}><X /></Button></div>
   <div className="flex-1 overflow-y-auto px-5 md:px-7 py-6 space-y-5">
     <div className="app-panel p-4 flex flex-wrap items-end gap-4">
       <label className="block min-w-0"><span className="app-label">Mês de referência</span><input className="app-field w-48" type="month" value={monthInput} onChange={e => setMonthInput(e.target.value)} /></label>
@@ -213,8 +262,8 @@ export function ReportModal({ activities, actorCount, plan, userName, onClose }:
       </div>
     </div>
     <div className="app-panel p-4 space-y-3">
-      <div><h3 className="font-bold text-sm">Indicadores</h3><p className="text-xs text-muted-foreground mt-1">O acumulado soma o resultado anterior com o do mês. As referências apontam as linhas da seção REF concluídas no mês. Edite os dois campos quando a contagem não for o número oficial.</p></div>
-      <div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="bg-muted text-muted-foreground text-xs uppercase"><tr><th className="p-3">Indicador</th><th className="p-3">Resultado anterior</th><th className="p-3">Resultado no mês</th><th className="p-3">Acumulado</th><th className="p-3">Referências</th></tr></thead><tbody>{reportCodes.map(code => { const previous = shown(code, "previous"); const current = shown(code, "current"); return <tr key={code} className="border-t"><td className="p-3 font-bold whitespace-nowrap" title={indicatorLabel(code)}>{code}</td><td className="p-3"><input className="app-field w-28" inputMode="decimal" value={previous} aria-label={`Resultado anterior de ${code}`} onChange={e => setIndicator(code, "previous", e.target.value)} /></td><td className="p-3"><input className="app-field w-28" inputMode="decimal" value={current} aria-label={`Resultado no mês de ${code}`} onChange={e => setIndicator(code, "current", e.target.value)} /></td><td className="p-3 whitespace-nowrap">{formatPt(parsePt(previous) + parsePt(current))}</td><td className="p-3 text-xs">{counts[code]?.refs || "—"}</td></tr>; })}</tbody></table></div>
+      <div><h3 className="font-bold text-sm">Indicadores</h3><p className="text-xs text-muted-foreground mt-1">O acumulado soma o resultado anterior com o do mês. As referências apontam as linhas da seção REF concluídas no mês. Edite os dois campos quando a contagem não for o número oficial. O que você digita fica salvo para a próxima contagem: o OBR 02 é a pontuação anual de maturidade e o novo valor substitui o anterior; no ADES-01 o valor do mês soma-se ao acumulado.</p></div>
+      <div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="bg-muted text-muted-foreground text-xs uppercase"><tr><th className="p-3">Indicador</th><th className="p-3">Resultado anterior</th><th className="p-3">Resultado no mês</th><th className="p-3">Acumulado</th><th className="p-3">Referências</th></tr></thead><tbody>{reportCodes.map(code => { const previous = shown(code, "previous"); const current = shown(code, "current"); return <tr key={code} className="border-t"><td className="p-3 font-bold whitespace-nowrap" title={indicatorLabel(code)}>{code}</td><td className="p-3"><input className="app-field w-28" inputMode="decimal" value={previous} aria-label={`Resultado anterior de ${code}`} onChange={e => setIndicator(code, "previous", e.target.value)} /></td><td className="p-3"><input className="app-field w-28" inputMode="decimal" value={current} aria-label={`Resultado no mês de ${code}`} onChange={e => setIndicator(code, "current", e.target.value)} /></td><td className="p-3 whitespace-nowrap">{accumulatedOf(code, previous, current)}</td><td className="p-3 text-xs">{counts[code]?.refs || "—"}</td></tr>; })}</tbody></table></div>
     </div>
     <div className="app-panel p-4 space-y-3">
       <h3 className="font-bold text-sm">Atividade em destaque</h3>
