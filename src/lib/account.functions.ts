@@ -56,8 +56,8 @@ export const changeOwnPassword = createServerFn({ method: "POST" })
   .validator((data) => changePasswordSchema.parse(data))
   .handler(async ({ data, context }) => {
     if (data.currentPassword === data.newPassword) throw new Error("A nova senha deve ser diferente da senha atual.");
-    const url = process.env["SUPABASE_URL"];
-    const publishableKey = process.env["SUPABASE_PUBLISHABLE_KEY"];
+    const url = import.meta.env["VITE_SUPABASE_URL"] || process.env["SUPABASE_URL"];
+    const publishableKey = import.meta.env["VITE_SUPABASE_PUBLISHABLE_KEY"] || process.env["SUPABASE_PUBLISHABLE_KEY"];
     if (!url || !publishableKey) throw new Error("A troca de senha está temporariamente indisponível.");
 
     const email = String(context.claims["email"] || "");
@@ -69,8 +69,9 @@ export const changeOwnPassword = createServerFn({ method: "POST" })
     const { error: signInError } = await authClient.auth.signInWithPassword({ email, password: data.currentPassword });
     if (signInError) throw new Error("Senha atual incorreta.");
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(context.userId, { password: data.newPassword });
+    // The sign-in above proves the current password and leaves a session in this client, so the
+    // new password is set in the user's own name. No service-role key is needed on the deploy.
+    const { error: updateError } = await authClient.auth.updateUser({ password: data.newPassword });
     if (updateError) throw new Error("Não foi possível alterar a senha. Tente novamente.");
 
     return { ok: true };
