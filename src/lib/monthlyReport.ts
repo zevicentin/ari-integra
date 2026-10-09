@@ -154,6 +154,15 @@ export function accumulatedOf(code: string, previous: string, current: string): 
   return formatPt(parsePt(previous) + parsePt(current));
 }
 
+/**
+ * Formats the OBR 02 single score in the Brazilian pattern, decimal separated by comma, whether the
+ * value arrived as "13,19" or "13.19". Empty input stays untouched.
+ */
+export function scorePt(value: string): string {
+  const trimmed = value.trim();
+  return trimmed ? formatPt(parseScore(trimmed)) : value;
+}
+
 const dateOf = (row: { start_date: string | null; end_date: string | null }): string | null =>
   row.start_date || row.end_date || null;
 
@@ -381,8 +390,12 @@ function fillIndicators(
     }
     const count = counts[code] ?? { previous: 0, current: 0, refs: "" };
     const override = values?.[code];
-    const previous = override?.previous ?? String(count.previous);
-    const current = override?.current ?? String(count.current);
+    const rawPrevious = override?.previous ?? String(count.previous);
+    const rawCurrent = override?.current ?? String(count.current);
+    // The maturity score is a single comma-separated value, so any dot typed instead of the comma is
+    // converted before it reaches the cells; the other indicators keep what the user typed.
+    const previous = code === "OBR 02" ? scorePt(rawPrevious) : rawPrevious;
+    const current = code === "OBR 02" ? scorePt(rawCurrent) : rawCurrent;
     rebuilt += rebuildRow(row.s, [
       cells[0]?.s || "",
       setCellLines(cells[1]?.s || "", [previous]),

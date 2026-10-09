@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { X, FileText } from "lucide-react";
-import { accumulatedOf, brDate, buildMonthlyReport, indicatorCounts, MONTHS_PT, stripDateSuffix, type ReportActivity, filterMonthActivities, type ReportEvidence } from "@/lib/monthlyReport";
+import { accumulatedOf, brDate, buildMonthlyReport, indicatorCounts, MONTHS_PT, scorePt, stripDateSuffix, type ReportActivity, filterMonthActivities, type ReportEvidence } from "@/lib/monthlyReport";
 import type { Json } from "@/integrations/supabase/types";
 import { field } from "@/components/field";
 import { indicatorCatalog, indicatorLabel } from "@/lib/constants";
@@ -89,6 +89,7 @@ export function ReportModal({ activities, actorCount, plan, userName, userId, on
   }));
   const [indicatorValues, setIndicatorValues] = useState<Record<string, { previous: string; current: string }>>({});
   const [savedValues, setSavedValues] = useState<Record<string, { previous: string; current: string; accumulated: string }>>({});
+  type SavedIndicatorValues = Record<string, { previous: string; current: string; accumulated: string }>;
   const [destaquePick, setDestaquePick] = useState("");
   const [destaque, setDestaque] = useState("");
   const [difficulties, setDifficulties] = useState("");
@@ -128,12 +129,32 @@ export function ReportModal({ activities, actorCount, plan, userName, userId, on
 
   const baselineOf = (code: string, key: "previous" | "current"): string => {
     const saved = savedValues[code];
-    if (key === "previous") return saved?.accumulated?.trim() ? saved.accumulated : String(counts[code]?.previous ?? 0);
+    if (key === "previous") {
+      // OBR 02 holds a single score per year: whatever was kept as accumulated, previous or current
+      // is the value shown, converted to a comma decimal and ignoring any residual "0" placeholders.
+      if (code === "OBR 02") return scoreOf(saved);
+      return saved?.accumulated?.trim() ? saved.accumulated : String(counts[code]?.previous ?? 0);
+    }
     // ADES-01 starts the month empty so a new award sum is typed without double-counting; OBR 02
-    // keeps its annual score visible so it can be replaced.
+    // keeps its retained score visible so it can be replaced by a new evaluation.
     if (code === "ADES-01") return "";
-    if (code === "OBR 02") return saved?.current?.trim() ? saved.current : String(counts[code]?.current ?? 0);
+    if (code === "OBR 02") {
+      const current = saved?.current?.trim();
+      return current && current !== "0" ? scorePt(current) : "";
+    }
     return String(counts[code]?.current ?? 0);
+  };
+
+  // The ecosystem may present the score into any of the three cells; the accumulated cell is the
+  // source of truth, but previous/current bail out any zero placeholder left by older rows.
+  const scoreOf = (saved: SavedIndicatorValues[string] | undefined): string => {
+    const accumulated = saved?.accumulated?.trim();
+    if (accumulated && accumulated !== "0") return scorePt(accumulated);
+    const previous = saved?.previous?.trim();
+    if (previous && previous !== "0") return scorePt(previous);
+    const current = saved?.current?.trim();
+    if (current && current !== "0") return scorePt(current);
+    return "";
   };
 
   const setHeaderField = (name: string, value: string) => setHeader(current => ({ ...current, [name]: value }));
@@ -212,14 +233,19 @@ export function ReportModal({ activities, actorCount, plan, userName, userId, on
       // this account generates another report with the same code.
       const edited = Object.entries(indicatorValues);
       if (edited.length) {
-        const rows = edited.map(([code, entry]) => ({
-          owner_id: userId,
-          code,
-          previous: entry.previous,
-          current: entry.current,
-          accumulated: accumulatedOf(code, entry.previous, entry.current),
-          updated_at: new Date().toISOString(),
-        }));
+        const rows = edited.map(([code, entry]) => {
+          const scored = code === "OBR 02";
+          const previous = scored ? scorePt(entry.previous) : entry.previous;
+          const current = scored ? scorePt(entry.current) : entry.current;
+          return {
+            owner_id: userId,
+            code,
+            previous,
+            current,
+            accumulated: accumulatedOf(code, previous, current),
+            updated_at: new Date().toISOString(),
+          };
+        });
         const { error: saveError } = await supabase
           .from("indicator_values")
           .upsert(rows, { onConflict: "owner_id,code" });
