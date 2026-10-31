@@ -217,6 +217,12 @@ export function ReportModal({ activities, actorCount, plan, userName, userId, on
           }
         }
       }
+      // The Word table must show the same numbers as the table on screen: that includes the
+      // computed baseline and the values kept from previous reports, not only the fields the user
+      // touched in this session. `edited` below is still what gets saved for the next count.
+      const reportIndicatorValues = Object.fromEntries(
+        reportCodes.map(code => [code, { previous: shown(code, "previous"), current: shown(code, "current") }]),
+      );
       const blob = await buildMonthlyReport({
         year: parsed.year,
         month: parsed.month,
@@ -226,7 +232,7 @@ export function ReportModal({ activities, actorCount, plan, userName, userId, on
         destaque,
         difficulties,
         evidence,
-        indicatorValues,
+        indicatorValues: reportIndicatorValues,
       });
       // Keep the handwritten values for the next count, best effort: a storage hiccup must not
       // block the report download. Only rows the user touched are written, each one replaced when
