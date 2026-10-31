@@ -47,3 +47,11 @@ export function confirmed<T>(result: { data: T | null; error: { message: string 
   if (result.data == null) throw new Error(`Não foi possível salvar ${what}: nenhuma linha foi alterada. Sua conta pode não ter permissão para esta alteração.`);
   return result.data;
 }
+
+// Supabase reports PostgrestError as a plain object, so `instanceof Error` is false and a generic
+// fallback would hide the database reason. Read `message` from any error shape before giving up.
+export function errorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) return String((error as { message: unknown }).message);
+  return fallback;
+}

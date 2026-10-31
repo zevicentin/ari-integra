@@ -21,7 +21,7 @@ import { ariFallback } from "@/lib/assets";
 import { statuses, nav, stages, axes, activityKinds } from "@/lib/constants";
 import { monthLabel, formatDate } from "@/lib/dates";
 import { removeEvidence } from "@/lib/evidence";
-import { initials, confirmed } from "@/lib/masks";
+import { initials, confirmed, errorMessage } from "@/lib/masks";
 import { type PlanActivity, storedActivities, planProgressOf } from "@/lib/plan";
 import type { CoordinationParticipant, ApprovalRequest, Organization, StrategyAction, Profile, AgentChoice, ActivityRow, Section, Actor } from "@/lib/types";
 
@@ -649,11 +649,7 @@ function Workspace({ session }: { session: Session }) {
                       onDelete={(a) => remove("strategy_actions", a.id)}
                       onSaveTasks={(action, next) => {
                         void saveTasks(action, next).catch((error) =>
-                          setToast(
-                            error instanceof Error
-                              ? error.message
-                              : "Não foi possível salvar a atividade.",
-                          ),
+                          setToast(errorMessage(error, "Não foi possível salvar a atividade.")),
                         );
                       }}
                       readOnly={readOnly}

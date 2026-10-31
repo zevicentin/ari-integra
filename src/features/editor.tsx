@@ -11,7 +11,7 @@ import { field } from "@/components/field";
 import { PlanActivities } from "@/components/plan-widgets";
 import { statuses, orgDefaults, strategyDefaults, stages, indicatorCatalog, axes, activityKinds, dateLabels, actorDefaults, activityDefaults, dateFieldKeys } from "@/lib/constants";
 import { toIsoDate, formatDate, isoToBrDate, isoDates } from "@/lib/dates";
-import { phoneMask, documentMask, confirmed, dateMask } from "@/lib/masks";
+import { phoneMask, documentMask, confirmed, dateMask, errorMessage } from "@/lib/masks";
 import { normalizeResults, type PlanActivity, type PlanResultEntry, type Outcome, emptyLinkedActivity, normalizeOutcomes, storedActivities, normalizeActivities } from "@/lib/plan";
 import type { CoordinationParticipant, Organization, StrategyAction, Profile, AgentChoice, ActivityRow, Actor } from "@/lib/types";
 
@@ -81,7 +81,7 @@ export function Editor({ kind, row, userId, userName, organizations, actors, coo
     } catch (error) { // The files uploaded in this attempt are referenced by no row yet, so a save
       // that failed anywhere — a rejected date, a refused write — must take them back out.
       if (kind === "activity") await removeEvidence(uploaded);
-      const text = error instanceof Error ? error.message : "Erro ao salvar registro."; setMessage(text); onError(text); } finally { setBusy(false); }
+      const text = errorMessage(error, "Erro ao salvar registro."); setMessage(text); onError(text); } finally { setBusy(false); }
   }
   const f = (label: string, name: string, opts?: { type?: string; options?: (string | { value: string; label: string })[]; textarea?: boolean; required?: boolean; mask?: (value: string) => string }) => field(label, name, values[name] || "", set, opts);
   const title = kind === "activity" ? "atividade" : kind === "strategy" ? "ação do plano" : kind === "organization" ? "organização" : kind === "actor" ? "ator da governança" : kind === "profile" ? "perfil" : "senha";
