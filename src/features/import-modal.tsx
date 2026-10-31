@@ -36,7 +36,7 @@ export function ImportModal({ onClose, userId, activities, organizations, onDone
   const known = useMemo(() => new Set(activities.map(a => dedupeKey(a.title, a.start_date ? isoToBrDate(a.start_date) : ""))), [activities]);
   const chosen = rows.filter(row => row.include);
   const patch = (id: string, part: Partial<ImportRow>) => setRows(rows.map(row => row.id === id ? { ...row, ...part } : row));
-  const edit = (id: string) => (name: string, value: string) => patch(id, { [name]: value } as Partial<ImportRow>);
+  const edit = (id: string) => (name: string, value: string) => patch(id, name === "kind" && value === "Reunião de governança" ? { kind: value, status: "Concluída" } : { [name]: value } as Partial<ImportRow>);
   const isDuplicate = (row: ImportRow) => row.duplicate || known.has(dedupeKey(importedTitle(row), row.startDate));
 
   const read = async () => {
@@ -76,7 +76,7 @@ export function ImportModal({ onClose, userId, activities, organizations, onDone
           objectives: row.objectives,
           expected_results: row.expectedResults,
           achieved_results: row.achievedResults,
-          status: row.status,
+          status: row.kind === "Reunião de governança" ? "Concluída" : row.status,
           axis: "",
           start_date: startDate,
           end_date: endDate,
